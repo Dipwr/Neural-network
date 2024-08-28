@@ -37,9 +37,21 @@ function NeuralNetwork(layersSet, weights, biases){
     this.weights =  weights;
     this.biases = biases;
     this.layers = [];
-    this.test = [1];
+    this.weightedSums = []
 
+    this.output = [];
+    
+    this.activationDevs = [];
+    this.weightDevs = []; 
+    this.biaseDevs = [];
 
+    this.actFuncDecider = function(x, isDerivative){
+        if(isDerivative){
+            return ((x < this.numLayers-1) ? leakyRelUDev : sigmoidDev);
+        }else{
+            return ((x < this.numLayers-1) ? leakyRelU : sigmoid);
+        }
+    }
 
     this.getNeuronsInLayer = function(layer){
         return this.layersSetup[layer];
@@ -47,7 +59,7 @@ function NeuralNetwork(layersSet, weights, biases){
 
     this.init = function(){
         for (let i = 0; i < this.numLayers; i++){
-            this.layers[i] = new Layer(i, this, (i < this.numLayers-1) ? leakyRelU : sigmoid); //if last layer pass sigmoid if not pass leakyReLU
+            this.layers[i] = new Layer(i, this, this.actFuncDecider(i, false)); //if last layer pass sigmoid if not pass leakyReLU
         }
     }
 
@@ -57,9 +69,13 @@ function NeuralNetwork(layersSet, weights, biases){
         for (let i = 0; i < this.numLayers-1; i++){
             this.weights[i] = [];
             this.biases[i] = [];
+            this.activationDevs[i] = [];
+            this.weightDevs[i] = []; 
+            this.biaseDevs[i] = [];
             for (let j = 0; j < this.layersSetup[i+1]; j++){
                 this.weights[i][j] = [];
-                this.biases[i][j] = [Math.random()*5];
+                this.weightDevs[i][j] = [];
+                this.biases[i][j] = [(-1 + Math.random()*2)*5];
                 for (let n = 0; n < this.layersSetup[i]; n++){
                     this.weights[i][j][n] = -1 + Math.random()*2;
                 }
@@ -73,10 +89,44 @@ function NeuralNetwork(layersSet, weights, biases){
             this.layers[0].activations[i] = [Math.random()]
         }   
     }
+
+    this.getOutput = function(){
+        this.output = this.layers[this.numLayers - 1].calcActivations();
+        return this.output;
+    }
+
+    this.partialDevOfOutputs = function(expectedOutputs){
+        let dev = math.multiply(2, math.subtract(this.output, expectedOutputs));
+        this.activationDevs[this.numLayers - 1] = dev;
+        return dev;
+    }
+
+    this.partialDevOfActivation = function(layer, index){
+        let acc = 0;
+        for (let k = 0; k < this.getNeuronsInLayer(layer + 1); k++){
+            let actFuncDevFunc = this.actFuncDecider(layer + 1, true);
+
+            let weight = this.weights[layer][k][index]; //layer+1 not needed as input layer does not have weights
+            let actFuncDev = actFuncDevFunc(this.weightedSums[layer + 1][k]);
+            let nextLayerActDev = this.activationDevs[layer+1][k][0];//[0] needed as activationDevs contains vertical matrices
+
+            acc += (weight * actFuncDev * nextLayerActDev);
+        }
+        this.activationDevs[layer][index] = [acc];
+        return acc;
+    }
+
+    this.backpropagate = function(){
+        //HAS to be run from outputs to inputs
+    }
 }
 
 function sigmoid(x){
     return 1 / (1 + math.exp(-x))
+}
+
+function sigmoidDev(x){
+    return sigmoid(x) * (1 - sigmoid(x));
 }
 
 function leakyRelU(x){
@@ -87,18 +137,27 @@ function leakyRelU(x){
     }
 }
 
-function Layer(pos, network, actFunc,){
+function leakyRelUDev(x){
+    if (x > 0) {
+        return 1;
+    }else{
+        return 0.01;
+    }
+}
+
+function Layer(index, network, actFunc){
     //REMEMBER to add diffrent object for input layer
-    this.pos = pos;
+    this.index = index;
     this.activationFunction = actFunc;
     this.activations = "TEST";
     
     this.calcActivations = function(){
         if(this.activations != "TEST"){return this.activations;}
 
-        let prevActivations = network.layers[this.pos - 1].calcActivations();
+        let prevActivations = network.layers[this.index - 1].calcActivations();
 
-        let weightedSum = math.add(math.multiply(network.weights[this.pos - 1], prevActivations), network.biases[this.pos - 1]);//reson for -1 is input layer does not have weights or biases 
+        let weightedSum = math.add(math.multiply(network.weights[this.index - 1], prevActivations), network.biases[this.index - 1]);//reason for -1 is input layer does not have weights or biases 
+        network.weightedSums[index] = weightedSum;
 
         this.activations = math.map(weightedSum, this.activationFunction);
         return this.activations;
@@ -109,6 +168,6 @@ function Layer(pos, network, actFunc,){
     }
 }
 
-let n = new NeuralNetwork([1000,100,50,30,20,10,5]);
+let n = new NeuralNetwork([3,2,3]);
 n.init();
 console.log(n);
