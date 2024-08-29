@@ -34,7 +34,7 @@ function NeuralNetwork(layersSet, weights, biases){
     this.numHiddenLayers = this.numLayers - 2;
     this.numInputs = this.layersSetup[0];
     this.numOutputs = this.layersSetup[this.numLayers - 1];
-    this.weights =  weights;
+    this.weights = weights;
     this.biases = biases;
     this.layers = [];
     this.weightedSums = []
@@ -43,7 +43,7 @@ function NeuralNetwork(layersSet, weights, biases){
     
     this.activationDevs = [];
     this.weightDevs = []; 
-    this.biaseDevs = [];
+    this.biasDevs = [];
 
     this.actFuncDecider = function(x, isDerivative){
         if(isDerivative){
@@ -71,7 +71,7 @@ function NeuralNetwork(layersSet, weights, biases){
             this.biases[i] = [];
             this.activationDevs[i] = [];
             this.weightDevs[i] = []; 
-            this.biaseDevs[i] = [];
+            this.biasDevs[i] = [];
             for (let j = 0; j < this.layersSetup[i+1]; j++){
                 this.weights[i][j] = [];
                 this.weightDevs[i][j] = [];
@@ -95,6 +95,14 @@ function NeuralNetwork(layersSet, weights, biases){
         return this.output;
     }
 
+    this.getCost= function(expectedOutputs){
+        let acc = 0;
+        for (let i = 0; i < this.numOutputs; i++){
+            acc += (this.output[i][0] - expectedOutputs[i][0]) ** 2;
+        }
+        return acc;
+    }
+
     this.partialDevOfOutputs = function(expectedOutputs){
         let dev = math.multiply(2, math.subtract(this.output, expectedOutputs));
         this.activationDevs[this.numLayers - 1] = dev;
@@ -108,16 +116,78 @@ function NeuralNetwork(layersSet, weights, biases){
 
             let weight = this.weights[layer][k][index]; //layer+1 not needed as input layer does not have weights
             let actFuncDev = actFuncDevFunc(this.weightedSums[layer + 1][k]);
-            let nextLayerActDev = this.activationDevs[layer+1][k][0];//[0] needed as activationDevs contains vertical matrices
+            let nextLayerActDev = this.activationDevs[layer+1][k][0]; //[0] needed as activationDevs contains vertical matrices
 
             acc += (weight * actFuncDev * nextLayerActDev);
         }
         this.activationDevs[layer][index] = [acc];
-        return acc;
+        return [acc];
     }
 
-    this.backpropagate = function(){
+    this.partialDevOfWeight = function(layer, j, k){
+        let actFuncDevFunc = this.actFuncDecider(layer, true);
+
+        let prevAct = this.layers[layer - 1].activations[k][0]; //[0] needed as activations contains a vertical matrix
+        let actFuncDev = actFuncDevFunc(this.weightedSums[layer][j]);
+        let nextLayerActDev = this.activationDevs[layer][j][0]; //[0] needed as activationDevs contains vertical matrices
+
+        this.weightDevs[layer-1][j][k] = (prevAct * actFuncDev * nextLayerActDev); //layer-1 as the input layer does not have weightDevs
+        return this.weightDevs[layer-1][j][k];
+    }
+
+    this.partialDevOfBias = function(layer, j){
+        let actFuncDevFunc = this.actFuncDecider(layer, true);
+
+        let actFuncDev = actFuncDevFunc(this.weightedSums[layer][j]);
+        let nextLayerActDev = this.activationDevs[layer][j][0]; //[0] needed as activationDevs contains vertical matrices
+
+        this.biasDevs[layer-1][j] = [(actFuncDev * nextLayerActDev)]; //layer-1 as the input layer does not have biasDevs
+        return this.biasDevs[layer-1][j];
+    }
+
+    this.backpropagate = function(expectedOutputs){
         //HAS to be run from outputs to inputs
+        this.partialDevOfOutputs(expectedOutputs)
+
+        for (let layer = this.numLayers-1; layer > 0; layer--){
+            for (let j = 0; j < this.layersSetup[layer]; j++){
+                if (layer != this.numLayers-1){
+                    this.partialDevOfActivation(layer, j)
+                }
+
+                this.partialDevOfBias(layer, j);
+
+                for (let k = 0; k < this.layersSetup[layer-1]; k++){
+                    this.partialDevOfWeight(layer, j, k);
+                }
+            }
+        }
+    }
+
+    this.applyNegGadient = function(){
+        for (let layer = 0; layer < this.numLayers-1; layer++){
+            this.weights[layer] = math.add(this.weights[layer], math.multiply(this.weightDevs[layer], -1));
+            this.biases[layer] = math.add(this.biases[layer], math.multiply(this.biasDevs[layer], -1));
+        }
+    }
+
+    this.resetActivations = function(){
+        for (let i = this.numLayers-1; i > 0; i--){ //does not reset inputs
+            this.layers[i].resetActivations();
+        }
+        this.output = [];
+    }
+
+    this.descendGradiant = function(expectedOutputs, steps){
+        this.randInput()
+        this.randWeightsAndBiases()
+        for (let i = 0; i < steps; i++){
+            this.getOutput();
+            console.log("iteration: ", i,", cost: ", this.getCost(expectedOutputs), ", outputs: ", this.output);
+            this.backpropagate(expectedOutputs)
+            this.applyNegGadient()
+            this.resetActivations()
+        }
     }
 }
 
@@ -149,10 +219,10 @@ function Layer(index, network, actFunc){
     //REMEMBER to add diffrent object for input layer
     this.index = index;
     this.activationFunction = actFunc;
-    this.activations = "TEST";
+    this.activations = true;
     
     this.calcActivations = function(){
-        if(this.activations != "TEST"){return this.activations;}
+        if(this.activations != true){return this.activations;}
 
         let prevActivations = network.layers[this.index - 1].calcActivations();
 
@@ -164,10 +234,10 @@ function Layer(index, network, actFunc){
     }
 
     this.resetActivations = function(){
-        this.activations = "TEST";
+        this.activations = true;
     }
 }
 
-let n = new NeuralNetwork([3,2,3]);
+let n = new NeuralNetwork([10,5,5]);
 n.init();
 console.log(n);
