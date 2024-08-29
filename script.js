@@ -47,9 +47,11 @@ function NeuralNetwork(layersSet, weights, biases){
 
     this.actFuncDecider = function(x, isDerivative){
         if(isDerivative){
-            return ((x < this.numLayers-1) ? leakyRelUDev : sigmoidDev);
+            //return ((x < this.numLayers-1) ? leakyRelUDev : sigmoidDev);
+            return leakyRelUDev;
         }else{
-            return ((x < this.numLayers-1) ? leakyRelU : sigmoid);
+            //return ((x < this.numLayers-1) ? leakyRelU : sigmoid);
+            return leakyRelU;
         }
     }
 
@@ -75,7 +77,7 @@ function NeuralNetwork(layersSet, weights, biases){
             for (let j = 0; j < this.layersSetup[i+1]; j++){
                 this.weights[i][j] = [];
                 this.weightDevs[i][j] = [];
-                this.biases[i][j] = [(-1 + Math.random()*2)*5];
+                this.biases[i][j] = [(Math.random())];
                 for (let n = 0; n < this.layersSetup[i]; n++){
                     this.weights[i][j][n] = -1 + Math.random()*2;
                 }
@@ -86,7 +88,7 @@ function NeuralNetwork(layersSet, weights, biases){
     this.randInput = function(){
         this.layers[0].activations = [];
         for (let i = 0; i < this.layersSetup[0]; i++){
-            this.layers[0].activations[i] = [Math.random()]
+            this.layers[0].activations[i] = [(-1 + Math.random()*2)]
         }   
     }
 
@@ -178,15 +180,44 @@ function NeuralNetwork(layersSet, weights, biases){
         this.output = [];
     }
 
-    this.descendGradiant = function(expectedOutputs, steps){
-        this.randInput()
-        this.randWeightsAndBiases()
+    this.descendGradiant = function(func, steps, numData, randomizeWeights){
+        if(randomizeWeights){this.randWeightsAndBiases()}
+        
         for (let i = 0; i < steps; i++){
-            this.getOutput();
-            console.log("iteration: ", i,", cost: ", this.getCost(expectedOutputs), ", outputs: ", this.output);
-            this.backpropagate(expectedOutputs)
+            let allGraWeights;
+            let allGraBiases;
+            let tCost = 0;
+            for (let j = 0; j < numData; j++){
+                this.randInput()
+
+                let expectedOutputs = func(this.layers[0].activations);
+
+                this.getOutput();
+
+                let cost =  this.getCost(expectedOutputs);
+                tCost += cost;
+                //console.log("data point: ", j," of step: ",i, ", cost: ", cost, ", outputs: ", this.output);
+
+                this.backpropagate(expectedOutputs);
+
+                if (j == 0){
+                    allGraWeights = math.clone(this.weightDevs);
+                    allGraBiases = math.clone(this.biasDevs);
+                }else{
+                    for (let n = 0; n < this.numLayers-1; n++){
+                        allGraWeights[n] = math.add(allGraWeights[n], this.weightDevs[n]);
+                        allGraBiases[n] = math.add(allGraBiases[n], this.biasDevs[n]);
+                    }
+                }
+                
+                this.resetActivations();
+            }
+            for (let n = 0; n < this.numLayers-1; n++){
+                this.weightDevs[n] = math.divide(allGraWeights[n], numData);
+                this.biasDevs[n] = math.divide(allGraBiases[n], numData)
+            }
+            console.log("Average cost of step: ", tCost/numData)
             this.applyNegGadient()
-            this.resetActivations()
         }
     }
 }
@@ -238,6 +269,12 @@ function Layer(index, network, actFunc){
     }
 }
 
-let n = new NeuralNetwork([10,5,5]);
+function funcToAprox(input){
+    let x = input[0][0]
+    let output = Math.sin(Math.PI * x);
+    return [[output]]
+}
+
+let n = new NeuralNetwork([1,10,10,10,10,1]);
 n.init();
 console.log(n);
