@@ -97,6 +97,16 @@ function NeuralNetwork(layersSet, weights, biases){
         return this.output;
     }
 
+    this.setInput = function(input){
+        this.layers[0].activations = input;
+    }
+
+    this.getOutputFromInput = function(input){
+        this.setInput(input);
+        this.resetActivations();
+        return this.getOutput();
+    }
+
     this.getCost= function(expectedOutputs){
         let acc = 0;
         for (let i = 0; i < this.numOutputs; i++){
@@ -166,10 +176,10 @@ function NeuralNetwork(layersSet, weights, biases){
         }
     }
 
-    this.applyNegGadient = function(){
+    this.applyNegGadient = function(divisor){
         for (let layer = 0; layer < this.numLayers-1; layer++){
-            this.weights[layer] = math.add(this.weights[layer], math.multiply(this.weightDevs[layer], -1));
-            this.biases[layer] = math.add(this.biases[layer], math.multiply(this.biasDevs[layer], -1));
+            this.weights[layer] = math.add(this.weights[layer], math.divide(this.weightDevs[layer], -1 * divisor));
+            this.biases[layer] = math.add(this.biases[layer], math.divide(this.biasDevs[layer], -1 * divisor));
         }
     }
 
@@ -180,7 +190,7 @@ function NeuralNetwork(layersSet, weights, biases){
         this.output = [];
     }
 
-    this.descendGradiant = function(func, steps, numData, randomizeWeights){
+    this.descendGradiant = function(func, steps, numData, divisor, randomizeWeights){
         if(randomizeWeights){this.randWeightsAndBiases()}
         
         for (let i = 0; i < steps; i++){
@@ -217,7 +227,7 @@ function NeuralNetwork(layersSet, weights, biases){
                 this.biasDevs[n] = math.divide(allGraBiases[n], numData)
             }
             console.log("Average cost of step: ", tCost/numData)
-            this.applyNegGadient()
+            this.applyNegGadient(divisor)
         }
     }
 }
@@ -250,10 +260,10 @@ function Layer(index, network, actFunc){
     //REMEMBER to add diffrent object for input layer
     this.index = index;
     this.activationFunction = actFunc;
-    this.activations = true;
+    this.activations = false;
     
     this.calcActivations = function(){
-        if(this.activations != true){return this.activations;}
+        if(this.activations !== false){return this.activations;}
 
         let prevActivations = network.layers[this.index - 1].calcActivations();
 
@@ -265,13 +275,13 @@ function Layer(index, network, actFunc){
     }
 
     this.resetActivations = function(){
-        this.activations = true;
+        this.activations = false;
     }
 }
 
 function funcToAprox(input){
     let x = input[0][0]
-    let output = Math.sin(Math.PI * x);
+    let output = Math.sin(2 * Math.PI * x * x);
     return [[output]]
 }
 
